@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>法庭證據逐字稿工具 (可匯入續編版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f1f5f9;
+        }
+        .step-container {
+            display: none;
+        }
+        .step-active {
+            display: block;
+        }
+        textarea {
+            resize: none;
+            overflow-y: hidden;
+        }
+        .star-active {
+            color: #f59e0b !important; /* amber-500 */
+        }
+        .row-highlight {
+            background-color: #fefce8; /* yellow-50 */
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased">
+
+    <div class="min-h-screen p-4 md:p-8">
+        <div class="max-w-6xl mx-auto">
+            
+            <!-- Header -->
+            <header class="flex flex-col md:flex-row items-center justify-between mb-8 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-indigo-700 rounded-xl text-white shadow-md">
+                        <i class="fas fa-gavel text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-slate-900 tracking-tight">法庭譯文證據產生器</h1>
+                        <p class="text-sm text-slate-500 font-medium">正式文書格式 ‧ 支援進度匯入</p>
+                    </div>
+                </div>
+                <div id="export-btn-container" class="hidden flex flex-wrap gap-2">
+                    <button onclick="saveProject()" class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-lg font-bold transition-all border border-slate-300">
+                        <i class="fas fa-save"></i>
+                        儲存專案 (.json)
+                    </button>
+                    <button onclick="exportToWord()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold transition-all shadow-md active:scale-95">
+                        <i class="fas fa-file-word"></i>
+                        匯出正式 Word
+                    </button>
+                </div>
+            </header>
+
+            <!-- Step 1: Setup -->
+            <div id="step-1" class="step-container step-active animate-in fade-in duration-500">
+                <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+                    <div class="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                        <h2 class="text-lg font-bold flex items-center gap-2 text-indigo-900">
+                            <i class="fas fa-sliders-h"></i>
+                            檔案基本資訊設定
+                        </h2>
+                        <div class="flex items-center gap-2">
+                            <input type="file" id="import-file" class="hidden" accept=".json" onchange="importProject(event)">
+                            <button onclick="document.getElementById('import-file').click()" class="text-sm bg-white border border-indigo-200 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-50 transition-all flex items-center gap-2 font-bold shadow-sm">
+                                <i class="fas fa-upload"></i> 匯入專案繼續編輯
+                            </button>
+                        </div>
+                    </div>
+                    <div class="p-8 space-y-8">
+                        <div class="grid md:grid-cols-2 gap-8">
+                            <!-- Filename -->
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">影片/檔案名稱</label>
+                                <input type="text" id="input-filename" placeholder="例如：113年度字第123號_證物一.mp4" 
+                                    class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                            </div>
+                            
+                            <!-- Recording Date -->
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">影片錄製日期</label>
+                                <input type="date" id="input-recording-date" 
+                                    class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                            </div>
+
+                            <!-- Duration -->
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">檔案時長</label>
+                                <input type="text" id="input-duration" placeholder="例如：00:10:45" 
+                                    class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                            </div>
+
+                            <!-- Speaker Count -->
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">對話人數</label>
+                                <input type="number" id="input-speaker-count" value="2" min="1" max="10"
+                                    class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                    onchange="handleSpeakerCountChange()">
+                            </div>
+                        </div>
+
+                        <!-- Speaker Names -->
+                        <div class="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
+                            <label class="block text-sm font-bold text-indigo-900 mb-4">設定說話者角色名稱</label>
+                            <div id="speakers-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <!-- Generated by JS -->
+                            </div>
+                        </div>
+
+                        <div class="pt-4 flex flex-col items-center gap-4">
+                            <button onclick="goToStep2()" class="flex items-center gap-3 bg-indigo-600 hover:bg-indigo-700 text-white px-12 py-4 rounded-2xl font-bold text-lg transition-all shadow-xl hover:shadow-indigo-200 active:scale-95">
+                                開始建立譯文表格 <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Editing Table -->
+            <div id="step-2" class="step-container space-y-4 animate-in fade-in duration-500">
+                <div class="flex justify-between items-center mb-2">
+                    <button onclick="goToStep1()" class="text-sm text-slate-500 hover:text-indigo-600 flex items-center gap-1 font-medium transition-colors">
+                        <i class="fas fa-arrow-left mr-1"></i> 返回設定
+                    </button>
+                    <div id="edit-status" class="text-xs text-indigo-600 font-bold bg-indigo-50 px-3 py-1 rounded-full">
+                        正在編輯中...
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse">
+                            <thead>
+                                <tr class="bg-slate-800 text-white text-sm">
+                                    <th class="py-4 px-4 text-center font-bold w-12">重點</th>
+                                    <th class="py-4 px-4 text-left font-bold w-28">時間戳記</th>
+                                    <th class="py-4 px-4 text-left font-bold w-40">說話人</th>
+                                    <th class="py-4 px-4 text-left font-bold">對話內容</th>
+                                    <th class="py-4 px-4 text-center font-bold w-16">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transcript-body" class="divide-y divide-slate-100">
+                                <!-- Generated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-6 bg-slate-50 flex justify-center border-t border-slate-100">
+                        <button onclick="addRow()" class="flex items-center gap-2 bg-white hover:bg-slate-100 text-indigo-700 border border-indigo-200 px-8 py-3 rounded-full font-bold shadow-sm transition-all active:scale-95">
+                            <i class="fas fa-plus"></i> 新增對話行
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Application State ---
+        let filename = '';
+        let recordingDate = '';
+        let duration = '';
+        let speakerCount = 2;
+        let speakers = ['原告', '被告'];
+        let transcript = [
+            { id: Date.now(), time: '00:00', speaker: '原告', text: '', isImportant: false }
+        ];
+
+        // --- Initialization ---
+        window.onload = () => {
+            renderSpeakerInputs();
+        };
+
+        // --- Logic Functions ---
+
+        function handleSpeakerCountChange() {
+            const input = document.getElementById('input-speaker-count');
+            const n = parseInt(input.value) || 1;
+            speakerCount = n;
+            
+            const newSpeakers = [...speakers];
+            if (n > speakers.length) {
+                const defaults = ['原告', '被告', '錄影者', '證人', '法官', '律師'];
+                for (let i = speakers.length; i < n; i++) {
+                    newSpeakers.push(defaults[i] || `說話者 ${i + 1}`);
+                }
+            } else {
+                newSpeakers.splice(n);
+            }
+            speakers = newSpeakers;
+            renderSpeakerInputs();
+        }
+
+        function renderSpeakerInputs() {
+            const container = document.getElementById('speakers-grid');
+            container.innerHTML = '';
+            speakers.forEach((name, idx) => {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-400 focus:border-transparent outline-none transition-all shadow-sm';
+                input.value = name;
+                input.placeholder = `說話者 ${idx + 1}`;
+                input.oninput = (e) => { speakers[idx] = e.target.value; };
+                container.appendChild(input);
+            });
+        }
+
+        function goToStep2() {
+            filename = document.getElementById('input-filename').value;
+            recordingDate = document.getElementById('input-recording-date').value;
+            duration = document.getElementById('input-duration').value;
+            
+            document.getElementById('step-1').classList.remove('step-active');
+            document.getElementById('step-2').classList.add('step-active');
+            document.getElementById('export-btn-container').classList.remove('hidden');
+            
+            renderTranscript();
+        }
+
+        function goToStep1() {
+            document.getElementById('step-2').classList.remove('step-active');
+            document.getElementById('step-1').classList.add('step-active');
+            document.getElementById('export-btn-container').classList.add('hidden');
+        }
+
+        function addRow() {
+            const lastSpeaker = transcript.length > 0 ? transcript[transcript.length - 1].speaker : speakers[0];
+            transcript.push({
+                id: Date.now(),
+                time: '',
+                speaker: lastSpeaker,
+                text: '',
+                isImportant: false
+            });
+            renderTranscript();
+            setTimeout(() => {
+                const textareas = document.querySelectorAll('textarea');
+                textareas[textareas.length - 1].focus();
+            }, 10);
+        }
+
+        function deleteRow(id) {
+            if (transcript.length > 1) {
+                transcript = transcript.filter(row => row.id !== id);
+                renderTranscript();
+            }
+        }
+
+        function toggleHighlight(id) {
+            const row = transcript.find(r => r.id === id);
+            if (row) {
+                row.isImportant = !row.isImportant;
+                renderTranscript();
+            }
+        }
+
+        function updateRow(id, field, value) {
+            const row = transcript.find(r => r.id === id);
+            if (row) {
+                row[field] = value;
+            }
+        }
+
+        function renderTranscript() {
+            const tbody = document.getElementById('transcript-body');
+            tbody.innerHTML = '';
+
+            transcript.forEach((row) => {
+                const tr = document.createElement('tr');
+                tr.className = `transition-colors ${row.isImportant ? 'row-highlight' : 'hover:bg-slate-50'}`;
+                
+                const speakerOptions = speakers.map(s => 
+                    `<option value="${s}" ${row.speaker === s ? 'selected' : ''}>${s}</option>`
+                ).join('');
+
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-center align-top">
+                        <button onclick="toggleHighlight(${row.id})" class="text-slate-300 hover:text-amber-500 transition-colors">
+                            <i class="fas fa-star ${row.isImportant ? 'star-active' : ''}"></i>
+                        </button>
+                    </td>
+                    <td class="py-3 px-4 align-top">
+                        <input type="text" value="${row.time}" placeholder="00:00"
+                            oninput="updateRow(${row.id}, 'time', this.value)"
+                            class="w-full bg-transparent border-b border-transparent focus:border-indigo-400 outline-none py-1 font-mono text-sm">
+                    </td>
+                    <td class="py-3 px-4 align-top">
+                        <select onchange="updateRow(${row.id}, 'speaker', this.value)"
+                            class="w-full bg-transparent border-b border-transparent focus:border-indigo-400 outline-none py-1 cursor-pointer font-bold text-sm">
+                            <option value="">選擇說話者</option>
+                            ${speakerOptions}
+                        </select>
+                    </td>
+                    <td class="py-3 px-4">
+                        <textarea 
+                            oninput="autoResize(this); updateRow(${row.id}, 'text', this.value)"
+                            placeholder="輸入對話內容..."
+                            class="w-full bg-transparent border-b border-transparent focus:border-indigo-400 outline-none py-1 min-h-[40px] leading-relaxed">${row.text}</textarea>
+                    </td>
+                    <td class="py-3 px-4 text-center align-top">
+                        <button onclick="deleteRow(${row.id})" class="text-slate-200 hover:text-red-500 transition-colors p-1">
+                            <i class="fas fa-times-circle"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+                const ta = tr.querySelector('textarea');
+                autoResize(ta);
+            });
+        }
+
+        function autoResize(el) {
+            el.style.height = 'auto';
+            el.style.height = el.scrollHeight + 'px';
+        }
+
+        // --- Import/Export Project Data ---
+
+        function saveProject() {
+            const projectData = {
+                filename: document.getElementById('input-filename').value,
+                recordingDate: document.getElementById('input-recording-date').value,
+                duration: document.getElementById('input-duration').value,
+                speakerCount,
+                speakers,
+                transcript,
+                version: '1.0'
+            };
+            
+            const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `逐字稿專案_${projectData.filename || '未命名'}_${new Date().getTime()}.json`;
+            link.click();
+        }
+
+        function importProject(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    // Restore basic info
+                    document.getElementById('input-filename').value = data.filename || '';
+                    document.getElementById('input-recording-date').value = data.recordingDate || '';
+                    document.getElementById('input-duration').value = data.duration || '';
+                    
+                    // Restore speakers
+                    speakerCount = data.speakerCount || 2;
+                    document.getElementById('input-speaker-count').value = speakerCount;
+                    speakers = data.speakers || ['原告', '被告'];
+                    renderSpeakerInputs();
+                    
+                    // Restore transcript
+                    transcript = data.transcript || [];
+                    
+                    alert('專案匯入成功！您可以點擊下方按鈕開始編輯。');
+                } catch (err) {
+                    alert('匯入失敗：檔案格式不正確。');
+                    console.error(err);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- Word Export Feature ---
+        function exportToWord() {
+            const dateStr = new Date().toLocaleDateString('zh-TW');
+            const htmlContent = `
+              <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+              <head>
+                <meta charset="utf-8">
+                <style>
+                  @page {
+                    size: A4;
+                    margin: 1cm 1cm 1cm 1.5cm;
+                    mso-header-margin: 0.5cm;
+                    mso-footer-margin: 0.5cm;
+                  }
+                  body { 
+                    font-family: 'DFKai-SB', '標楷體', 'BiauKai', serif; 
+                    line-height: 1.6; 
+                    font-size: 12pt;
+                  }
+                  .title { text-align: center; font-size: 20pt; font-weight: bold; margin-bottom: 25pt; border-bottom: 2pt double black; padding-bottom: 10pt; }
+                  .meta { margin-bottom: 15pt; font-size: 11pt; }
+                  table { width: 100%; border-collapse: collapse; border: 1.5pt solid black; }
+                  th, td { border: 0.5pt solid black; padding: 8pt; vertical-align: top; }
+                  th { background-color: #eeeeee; font-weight: bold; text-align: center; }
+                  .highlight { background-color: yellow; font-weight: bold; }
+                  .time-col { width: 12%; text-align: center; }
+                  .speaker-col { width: 18%; font-weight: bold; }
+                  .footer { text-align: center; font-size: 10pt; margin-top: 20pt; }
+                </style>
+              </head>
+              <body>
+                <div class="title">錄音錄影譯文摘要表</div>
+                <div class="meta">
+                  <p><strong>檔案名稱：</strong> ${filename || '(未註記)'}</p>
+                  <p><strong>錄製日期：</strong> ${recordingDate || '(未註記)'}</p>
+                  <p><strong>檔案長度：</strong> ${duration || '(未註記)'}</p>
+                  <p><strong>參與對象：</strong> ${speakers.join('、')}</p>
+                  <p><strong>製作日期：</strong> ${dateStr}</p>
+                </div>
+
+                <table>
+                  <thead>
+                    <tr>
+                      <th class="time-col">時間</th>
+                      <th class="speaker-col">說話人</th>
+                      <th>譯文內容</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${transcript.map(row => `
+                      <tr>
+                        <td class="time-col ${row.isImportant ? 'highlight' : ''}">${row.time || ''}</td>
+                        <td class="speaker-col ${row.isImportant ? 'highlight' : ''}">${row.speaker || ''}</td>
+                        <td class="${row.isImportant ? 'highlight' : ''}">${row.text || ''}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+                
+                <div class="footer">
+                  第 <span style='mso-field-code:" PAGE "'></span> 頁 / 共 <span style='mso-field-code:" NUMPAGES "'></span> 頁
+                </div>
+              </body>
+              </html>
+            `;
+
+            const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `法庭譯文_${filename || '未命名'}_${dateStr.replace(/\//g, '')}.doc`;
+            link.click();
+        }
+    </script>
+</body>
+</html>
